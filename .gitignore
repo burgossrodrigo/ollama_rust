@@ -1,0 +1,39 @@
+# Rust
+api/target/
+api/**/*.rs.bk
+Cargo.lock
+
+# Terraform
+iac/.terraform/
+iac/.terraform.lock.hcl
+iac/terraform.tfstate
+iac/terraform.tfstate.backup
+iac/terraform.tfvars
+iac/*.tfvars
+iac/crash.log
+iac/override.tf
+iac/override.tf.json
+
+# Node / Vite
+web/node_modules/
+web/dist/
+web/.vite/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+service-account*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo

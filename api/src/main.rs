@@ -1,0 +1,180 @@
+use anyhow::Context;
+use axum::{
+    body::Body,
+    extract::State,
+    http::{HeaderMap, HeaderValue, StatusCode},
+    response::{IntoResponse, Response},
+    routing::{get, post},
+    Json, Router,
+};
+use futures_util::StreamExt;
+use serde::{Deserialize, Serialize};
+use std::{env, sync::Arc, time::Duration};
+use tokio::sync::Semaphore;
+use tracing::error;
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct PromptRequest {
+    prompt: String,
+    #[serde(default = "default_model")]
+    model: String,
+}
+
+fn default_model() -> String {
+    env::var("OLLAMA_MODEL").unwrap_or_else(|_| "qwen3:8b".to_string())
+}
+
+#[derive(Serialize)]
+struct OllamaRequest<'a> {
+    model: &'a str,
+    prompt: &'a str,
+    stream: bool,
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+struct AppState {
+    semaphore: Arc<Semaphore>,
+    ollama_url: String,
+    http: reqwest::Client,
+}
+
+// ── Handlers ──────────────────────────────────────────────────────────────────
+
+async fn health() -> impl IntoResponse {
+    (StatusCode::OK, "ok")
+}
+
+async fn prompt(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<PromptRequest>,
+) -> Response {
+    // Callers wait here if all GPU slots are busy — no rejection, just backpressure.
+    // acquire_owned() returns OwnedSemaphorePermit (no lifetime), safe to move into the stream.
+    let _permit = match Arc::clone(&state.semaphore).acquire_owned().await {
+        Ok(p) => p,
+        Err(e) => {
+            error!("semaphore closed: {e}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "semaphore closed").into_response();
+        }
+    };
+
+    let body = OllamaRequest {
+        model: &req.model,
+        prompt: &req.prompt,
+        stream: true,
+    };
+
+    let upstream = match state
+        .http
+        .post(format!("{}/api/generate", state.ollama_url))
+        .json(&body)
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            error!("ollama request failed: {e:#}");
+            return (StatusCode::BAD_GATEWAY, format!("ollama error: {e:#}")).into_response();
+        }
+    };
+
+    if !upstream.status().is_success() {
+        let status = upstream.status();
+        let text = upstream.text().await.unwrap_or_default();
+        error!(%status, body = %text, "ollama returned non-2xx");
+        return (StatusCode::BAD_GATEWAY, text).into_response();
+    }
+
+    let mut byte_stream = upstream.bytes_stream();
+
+    // Stream Ollama's newline-delimited JSON chunks as SSE frames.
+    // The permit moves into the async block, keeping the GPU slot held
+    // for the full duration of the stream.
+    let sse_stream = async_stream::stream! {
+        let _permit = _permit;
+
+        while let Some(chunk) = byte_stream.next().await {
+            match chunk {
+                Ok(bytes) => {
+                    for line in bytes.split(|&b| b == b'\n') {
+                        if line.is_empty() {
+                            continue;
+                        }
+                        let mut frame = Vec::with_capacity(line.len() + 8);
+                        frame.extend_from_slice(b"data: ");
+                        frame.extend_from_slice(line);
+                        frame.extend_from_slice(b"\n\n");
+                        yield Ok::<_, std::io::Error>(bytes::Bytes::from(frame));
+                    }
+                }
+                Err(e) => {
+                    error!("stream error: {e:#}");
+                    break;
+                }
+            }
+        }
+
+        yield Ok(bytes::Bytes::from_static(b"data: [DONE]\n\n"));
+    };
+
+    let mut headers = HeaderMap::new();
+    headers.insert("Content-Type", HeaderValue::from_static("text/event-stream"));
+    headers.insert("Cache-Control", HeaderValue::from_static("no-cache"));
+    headers.insert("X-Accel-Buffering", HeaderValue::from_static("no"));
+
+    (headers, Body::from_stream(sse_stream)).into_response()
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "error".into()),
+        )
+        .init();
+
+    let ollama_url = env::var("OLLAMA_URL")
+        .unwrap_or_else(|_| "http://ollama:11434".to_string());
+
+    let semaphore_limit: usize = env::var("SEMAPHORE_LIMIT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(3);
+
+    let port: u16 = env::var("PORT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(8080);
+
+    let state = Arc::new(AppState {
+        semaphore: Arc::new(Semaphore::new(semaphore_limit)),
+        ollama_url,
+        http: reqwest::Client::builder()
+            .timeout(Duration::from_secs(120))
+            .build()
+            .context("failed to build HTTP client")?,
+    });
+
+    let app = Router::new()
+        .route("/health", get(health))
+        .route("/prompt", post(prompt))
+        .with_state(state);
+
+    let addr = format!("0.0.0.0:{port}");
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .with_context(|| format!("failed to bind {addr}"))?;
+
+    tracing::info!("listening on {addr}");
+    axum::serve(listener, app)
+        .await
+        .context("server error")?;
+
+    Ok(())
+}
