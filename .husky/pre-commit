@@ -14,5 +14,9 @@ echo "▶ cargo check"
 (cd api && cargo check 2>&1)
 
 # ── TypeScript type check ─────────────────────────────────────────────────────
-echo "▶ tsc"
-(cd web && npx tsc --noEmit 2>&1)
+if [ -f "web/node_modules/.bin/tsc" ]; then
+  echo "▶ tsc"
+  (cd web && ./node_modules/.bin/tsc --noEmit 2>&1)
+else
+  echo "⚠  tsc skipped — run 'npm install' in web/ first"
+fi
