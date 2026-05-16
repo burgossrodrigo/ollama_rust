@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+
+# ── Terraform validate ────────────────────────────────────────────────────────
+if [ -d "iac/.terraform" ]; then
+  echo "▶ terraform validate"
+  (cd iac && terraform validate)
+else
+  echo "⚠  terraform validate skipped — run 'terraform init' in iac/ first"
+fi
+
+# ── Rust type check ───────────────────────────────────────────────────────────
+echo "▶ cargo check"
+(cd api && cargo check 2>&1)
+
+# ── TypeScript type check ─────────────────────────────────────────────────────
+echo "▶ tsc"
+(cd web && npx tsc --noEmit 2>&1)

@@ -15,9 +15,11 @@ iac/override.tf
 iac/override.tf.json
 
 # Node / Vite
+node_modules/
 web/node_modules/
 web/dist/
 web/.vite/
+package-lock.json
 
 # Env / secrets
 .env
