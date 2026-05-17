@@ -82,6 +82,8 @@ resource "google_container_cluster" "main" {
   network    = google_compute_network.vpc.id
   subnetwork = google_compute_subnetwork.subnet.id
 
+  deletion_protection = false
+
   # Remover o node pool default (vamos criar o nosso próprio)
   remove_default_node_pool = true
   initial_node_count       = 1
