@@ -12,11 +12,10 @@ terraform {
     }
   }
 
-  # Descomente e ajuste se quiser state remoto no GCS
-  # backend "gcs" {
-  #   bucket = "seu-bucket-tfstate"
-  #   prefix = "ollama"
-  # }
+  backend "gcs" {
+    bucket = "ollama-rust-tfstate"
+    prefix = "ollama"
+  }
 }
 
 # ── Providers ─────────────────────────────────────────────────────────────────

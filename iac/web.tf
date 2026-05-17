@@ -8,6 +8,26 @@ variable "web_domain" {
   type        = string
 }
 
+# ── Cloud DNS — zona e registro A apontando para o IP dinâmico do Ingress ────
+# O Terraform aguarda o LB ser provisionado antes de criar o registro,
+# portanto o IP estará disponível quando o record set for criado.
+
+resource "google_dns_managed_zone" "web" {
+  name        = "chat-rodrigoburgos-tech"
+  dns_name    = "chat.rodrigoburgos.tech."
+  description = "Zona delegada para o subdominio chat.rodrigoburgos.tech"
+  project     = var.project_id
+}
+
+resource "google_dns_record_set" "chat" {
+  name         = "chat.rodrigoburgos.tech."
+  type         = "A"
+  ttl          = 300
+  managed_zone = google_dns_managed_zone.web.name
+  project      = var.project_id
+  rrdatas      = [kubernetes_ingress_v1.web.status[0].load_balancer[0].ingress[0].ip]
+}
+
 # ── GKE ManagedCertificate (TLS provisionado automaticamente pelo GCP) ─────────
 
 resource "kubernetes_manifest" "web_cert" {

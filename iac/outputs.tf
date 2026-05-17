@@ -14,7 +14,12 @@ output "kubeconfig_command" {
   value       = "gcloud container clusters get-credentials ${google_container_cluster.main.name} --zone ${var.zone} --project ${var.project_id}"
 }
 
-output "ingress_ip_command" {
-  description = "Command to get the Ingress external IP after apply"
-  value       = "kubectl get ingress ollama-web-ingress -n ollama -o jsonpath='{.status.loadBalancer.ingress[0].ip}'"
+output "ingress_ip" {
+  description = "IP do Load Balancer provisionado pelo GKE Ingress"
+  value       = kubernetes_ingress_v1.web.status[0].load_balancer[0].ingress[0].ip
+}
+
+output "dns_nameservers" {
+  description = "Nameservers da zona Cloud DNS — configure esses no Porkbun"
+  value       = google_dns_managed_zone.web.name_servers
 }

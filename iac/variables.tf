@@ -64,7 +64,7 @@ variable "ollama_model" {
 }
 
 variable "api_image" {
-  description = "Docker image for the Rust API (e.g. gcr.io/PROJECT/ollama-api:latest)"
+  description = "Docker image for the Rust API"
   type        = string
 }
 
