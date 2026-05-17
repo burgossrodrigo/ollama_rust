@@ -127,6 +127,7 @@ setup-oidc:
         --workload-identity-pool="{{gcp_pool}}" \
         --display-name="GitHub Provider" \
         --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+        --attribute-condition="assertion.repository=='{{github_repo}}'" \
         --issuer-uri="https://token.actions.githubusercontent.com" || true
 
     @echo "=== [4/6] Criando Service Account para Deploy ==="
@@ -140,11 +141,10 @@ setup-oidc:
         --role="roles/owner" > /dev/null
 
     @echo "=== [6/6] Vinculando o Repositório GitHub à Service Account ==="
-    @NUM_PROJETO=$$(gcloud projects describe {{project_id}} --format='value(projectNumber)'); \
     gcloud iam service-accounts add-iam-policy-binding "{{sa_email}}" \
         --project="{{project_id}}" \
         --role="roles/iam.workloadIdentityUser" \
-        --member="principalSet://iam.googleapis.com/projects/$$NUM_PROJETO/locations/global/workloadIdentityPools/{{gcp_pool}}/attribute.repository/{{github_repo}}" > /dev/null
+        --member="principalSet://iam.googleapis.com/projects/$(gcloud projects describe {{project_id}} --format='value(projectNumber)')/locations/global/workloadIdentityPools/{{gcp_pool}}/attribute.repository/{{github_repo}}" > /dev/null
 
     @echo ""
     @echo "=============================================================================="
