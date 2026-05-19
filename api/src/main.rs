@@ -50,6 +50,7 @@ struct OllamaRequest<'a> {
 
 struct AppState {
     semaphore: Arc<Semaphore>,
+    semaphore_capacity: usize,
     ollama_url: String,
     http: reqwest::Client,
     rate_limiter: Arc<DashMap<IpAddr, VecDeque<Instant>>>,
@@ -90,6 +91,17 @@ async fn health() -> impl IntoResponse {
     (StatusCode::OK, "ok")
 }
 
+async fn status(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let available = state.semaphore.available_permits();
+    let capacity = state.semaphore_capacity;
+    let busy = capacity - available;
+    axum::Json(serde_json::json!({
+        "busy": busy,
+        "capacity": capacity,
+        "available": available,
+    }))
+}
+
 async fn prompt(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -119,12 +131,10 @@ async fn prompt(
             .into_response();
     }
 
-    // Callers wait here if all GPU slots are busy — no rejection, just backpressure.
-    let _permit = match Arc::clone(&state.semaphore).acquire_owned().await {
+    let _permit = match Arc::clone(&state.semaphore).try_acquire_owned() {
         Ok(p) => p,
-        Err(e) => {
-            error!("semaphore closed: {e}");
-            return (StatusCode::INTERNAL_SERVER_ERROR, "semaphore closed").into_response();
+        Err(_) => {
+            return (StatusCode::SERVICE_UNAVAILABLE, "At capacity — try again shortly").into_response();
         }
     };
 
@@ -221,6 +231,7 @@ async fn main() -> anyhow::Result<()> {
 
     let state = Arc::new(AppState {
         semaphore: Arc::new(Semaphore::new(semaphore_limit)),
+        semaphore_capacity: semaphore_limit,
         ollama_url,
         http: reqwest::Client::builder()
             .timeout(Duration::from_secs(300))
@@ -231,6 +242,7 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/health", get(health))
+        .route("/status", get(status))
         .route("/prompt", post(prompt))
         .with_state(state);
 

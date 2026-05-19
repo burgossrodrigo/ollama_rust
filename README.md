@@ -308,6 +308,158 @@ just debug-tls
 
 ---
 
+### `terraform_remote_state` / `kubernetes_manifest` blocking destroy
+
+**Symptom**: `terraform destroy` on the monolithic `iac/` root fails with `Failed to construct REST client` on `kubernetes_manifest` resources (e.g. `ManagedCertificate`), even when trying to destroy only GCP resources.
+
+**Cause**: The Kubernetes provider tries to connect to the cluster during plan/destroy, even for unrelated resources. If the cluster is already gone, the whole destroy hangs.
+
+**Fix**: The project is split into two Terraform roots — `iac/infra/` (GCP only) and `iac/k8s/` (Kubernetes only). Always destroy in order:
+
+```bash
+just tf-destroy   # destroys k8s first, then infra
+```
+
+Never run `terraform destroy` directly in a root that mixes GCP and Kubernetes providers.
+
+---
+
+### PVC stuck in `Pending` / `context deadline exceeded`
+
+**Symptom**: `kubernetes_persistent_volume_claim.ollama_models` times out during `terraform apply` with `context deadline exceeded`.
+
+**Cause**: The `standard-rwo` storage class uses `WaitForFirstConsumer` — the PVC stays `Pending` until a pod actually mounts it. Terraform waits for `Bound` by default and times out.
+
+**Fix**: Set `wait_until_bound = false` on the PVC resource. The PVC will bind automatically once the Ollama pod is scheduled.
+
+---
+
+### Ollama init container: `could not connect to ollama server`
+
+**Symptom**: The `pull-model` init container crashes with `could not connect to ollama server`.
+
+**Cause**: `ollama pull` requires a running Ollama server. The original init container ran `ollama pull` directly without starting the server first.
+
+**Fix**: The init container command now starts the server in the background, waits for it to be ready, pulls the model, then kills the server:
+
+```bash
+ollama serve & SERVER_PID=$! && until ollama list > /dev/null 2>&1; do sleep 2; done && ollama pull <model> && kill $SERVER_PID
+```
+
+---
+
+### `Unexpected Identity Change` on Kubernetes deployment
+
+**Symptom**: `terraform apply` fails with `Unexpected Identity Change: During the read operation, the Terraform Provider unexpectedly returned a different identity`.
+
+**Cause**: Corrupted partial state from a failed previous apply — the resource exists in the cluster but Terraform's stored identity is stale/empty.
+
+**Fix**: Remove the resource from state and re-import it:
+
+```bash
+cd iac/k8s
+terraform state rm kubernetes_deployment.<name>
+terraform import \
+  -var="api_image=..." -var="web_image=..." -var="web_domain=..." \
+  kubernetes_deployment.<name> <namespace>/<deployment-name>
+```
+
+---
+
+### PSC endpoint blocking subnet deletion
+
+**Symptom**: `terraform destroy` fails because a Private Service Connect endpoint (`gk3-*-pe`) cannot be deleted, blocking VPC/subnet deletion.
+
+**Cause**: GKE creates PSC endpoints automatically for cluster control plane access. These are not managed by Terraform and must be deleted separately.
+
+**Fix**:
+```bash
+gcloud compute forwarding-rules list --project=<project>
+gcloud compute forwarding-rules delete <psc-endpoint-name> --region=<region> --project=<project>
+```
+
+If `gcloud` also fails (permission issue), use the GCP Console → VPC Network → Private Service Connect → Connected endpoints.
+
+---
+
+### API pod `Insufficient CPU` on system node
+
+**Symptom**: `ollama-api` pod stays `Pending` with event `0/2 nodes are available: 1 Insufficient cpu, 1 node(s) had untolerated taint`.
+
+**Cause**: The `e2-medium` system node has only ~940m allocatable CPU, which is fully consumed by `kube-system` pods (CoreDNS, metrics-server, etc.), leaving no room for the API pod.
+
+**Fix**: Upgrade the system node pool machine type to `e2-standard-2` in `iac/infra/main.tf`:
+
+```hcl
+resource "google_container_node_pool" "system" {
+  node_config {
+    machine_type = "e2-standard-2"   # was e2-medium
+    ...
+  }
+}
+```
+
+Then apply: `cd iac/infra && terraform apply`.
+
+---
+
+### GCLB 30-second timeout on long LLM responses
+
+**Symptom**: Requests to `/prompt` return an error after ~30 seconds for complex prompts (during the model's thinking phase).
+
+**Cause**: The GKE Ingress (Google Cloud Load Balancer) has a default backend timeout of 30 seconds. The Qwen3 8B model can take longer than that before sending the first response token.
+
+**Fix**: Create a `BackendConfig` with a higher `timeoutSec` and attach it to the web Service and Ingress via annotations:
+
+```hcl
+resource "kubernetes_manifest" "web_backend_config" {
+  manifest = {
+    apiVersion = "cloud.google.com/v1"
+    kind       = "BackendConfig"
+    spec = { timeoutSec = 300 }
+  }
+}
+```
+
+Also increase `proxy_read_timeout` in `web/nginx.conf` to match.
+
+---
+
+### GitHub Actions deploying to wrong region
+
+**Symptom**: CI build succeeds but the image is pushed to `us-east1-docker.pkg.dev` while the cluster and registry are in `us-east4`. Deploy step fails because the image doesn't exist in the correct registry.
+
+**Cause**: The `REGION` env var in the workflow files was hardcoded to the original region and not updated when the cluster was migrated.
+
+**Fix**: Update `REGION` and `IMAGE_PATH` in both `.github/workflows/deploy-api.yml` and `deploy-web.yml`, and hardcode `location: us-east4` in the `get-gke-credentials` step (instead of using `vars.GKE_ZONE` which contained a zone, not a region).
+
+---
+
+### Docker build fails: `dist/` not found
+
+**Symptom**: CI fails with `"/dist": not found` during the Docker build of the web image.
+
+**Cause**: The original `web/Dockerfile` used `COPY dist /usr/share/nginx/html`, assuming the Vite build had already run locally. CI doesn't have a pre-built `dist/`.
+
+**Fix**: Convert to a multi-stage Dockerfile that runs `npm run build` inside Docker:
+
+```dockerfile
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM nginx:1.27-alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+```
+
+Also ensure `web/package-lock.json` is committed — `npm ci` requires it and it was previously gitignored.
+
+---
+
 ## Git hooks (Husky — pre-commit)
 
 After cloning, run `npm install` in the root to install Husky automatically.

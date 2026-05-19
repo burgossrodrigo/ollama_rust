@@ -253,6 +253,23 @@ export const EmptySub = styled.p`
   color: #6e6e80;
 `;
 
+// ── Capacity banner ───────────────────────────────────────────────────────────
+
+export const CapacityBanner = styled.div`
+  max-width: 768px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 8px 24px;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: 13px;
+  color: #f0a500;
+
+  @media (max-width: 640px) {
+    padding: 8px 12px;
+  }
+`;
+
 // ── Input bar ─────────────────────────────────────────────────────────────────
 
 export const InputWrapper = styled.div`
