@@ -7,11 +7,24 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use dashmap::DashMap;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use std::{env, sync::Arc, time::Duration};
+use std::{
+    collections::VecDeque,
+    env,
+    net::IpAddr,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tokio::sync::Semaphore;
 use tracing::error;
+
+// ── Config ────────────────────────────────────────────────────────────────────
+
+const MAX_PROMPT_LEN: usize = 4_000;
+const RATE_LIMIT_REQUESTS: usize = 10;
+const RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -39,6 +52,36 @@ struct AppState {
     semaphore: Arc<Semaphore>,
     ollama_url: String,
     http: reqwest::Client,
+    rate_limiter: Arc<DashMap<IpAddr, VecDeque<Instant>>>,
+}
+
+// ── Rate limiter ──────────────────────────────────────────────────────────────
+
+fn check_rate_limit(rate_limiter: &DashMap<IpAddr, VecDeque<Instant>>, ip: IpAddr) -> bool {
+    let now = Instant::now();
+    let mut entry = rate_limiter.entry(ip).or_default();
+    let timestamps = entry.value_mut();
+
+    while timestamps.front().map_or(false, |t| now.duration_since(*t) > RATE_LIMIT_WINDOW) {
+        timestamps.pop_front();
+    }
+
+    if timestamps.len() >= RATE_LIMIT_REQUESTS {
+        return false;
+    }
+
+    timestamps.push_back(now);
+    true
+}
+
+fn extract_ip(headers: &HeaderMap) -> IpAddr {
+    headers
+        .get("x-real-ip")
+        .or_else(|| headers.get("x-forwarded-for"))
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(IpAddr::from([0, 0, 0, 0]))
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -49,10 +92,28 @@ async fn health() -> impl IntoResponse {
 
 async fn prompt(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<PromptRequest>,
 ) -> Response {
+    let ip = extract_ip(&headers);
+
+    if !check_rate_limit(&state.rate_limiter, ip) {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            "Rate limit: max 10 requests per minute per IP",
+        )
+            .into_response();
+    }
+
+    if req.prompt.len() > MAX_PROMPT_LEN {
+        return (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!("Prompt too long: max {MAX_PROMPT_LEN} characters"),
+        )
+            .into_response();
+    }
+
     // Callers wait here if all GPU slots are busy — no rejection, just backpressure.
-    // acquire_owned() returns OwnedSemaphorePermit (no lifetime), safe to move into the stream.
     let _permit = match Arc::clone(&state.semaphore).acquire_owned().await {
         Ok(p) => p,
         Err(e) => {
@@ -156,9 +217,10 @@ async fn main() -> anyhow::Result<()> {
         semaphore: Arc::new(Semaphore::new(semaphore_limit)),
         ollama_url,
         http: reqwest::Client::builder()
-            .timeout(Duration::from_secs(120))
+            .timeout(Duration::from_secs(300))
             .build()
             .context("failed to build HTTP client")?,
+        rate_limiter: Arc::new(DashMap::new()),
     });
 
     let app = Router::new()

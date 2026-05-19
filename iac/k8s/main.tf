@@ -411,12 +411,31 @@ resource "kubernetes_deployment" "web" {
   depends_on = [kubernetes_service.api]
 }
 
+# ── Web — BackendConfig (GCLB timeout) ───────────────────────────────────────
+
+resource "kubernetes_manifest" "web_backend_config" {
+  manifest = {
+    apiVersion = "cloud.google.com/v1"
+    kind       = "BackendConfig"
+    metadata = {
+      name      = "ollama-web-backendconfig"
+      namespace = kubernetes_namespace.ollama.metadata[0].name
+    }
+    spec = {
+      timeoutSec = 300
+    }
+  }
+}
+
 # ── Web — Service ─────────────────────────────────────────────────────────────
 
 resource "kubernetes_service" "web" {
   metadata {
     name      = "ollama-web"
     namespace = kubernetes_namespace.ollama.metadata[0].name
+    annotations = {
+      "cloud.google.com/backend-config" = jsonencode({ default = "ollama-web-backendconfig" })
+    }
   }
 
   spec {
@@ -438,8 +457,9 @@ resource "kubernetes_ingress_v1" "web" {
     namespace = kubernetes_namespace.ollama.metadata[0].name
 
     annotations = {
-      "networking.gke.io/managed-certificates" = "web-managed-cert"
-      "kubernetes.io/ingress.class"             = "gce"
+      "networking.gke.io/managed-certificates"  = "web-managed-cert"
+      "kubernetes.io/ingress.class"              = "gce"
+      "cloud.google.com/backend-config"          = jsonencode({ default = "ollama-web-backendconfig" })
     }
   }
 
