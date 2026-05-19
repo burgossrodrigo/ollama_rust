@@ -22,7 +22,7 @@ use tracing::error;
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const MAX_PROMPT_LEN: usize = 4_000;
+const MAX_PROMPT_SENTENCES: usize = 2;
 const RATE_LIMIT_REQUESTS: usize = 10;
 const RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
 
@@ -105,10 +105,16 @@ async fn prompt(
             .into_response();
     }
 
-    if req.prompt.len() > MAX_PROMPT_LEN {
+    let sentence_count = req.prompt
+        .chars()
+        .filter(|&c| matches!(c, '.' | '!' | '?' | '\n'))
+        .count()
+        .saturating_add(1); // última frase pode não ter pontuação
+
+    if sentence_count > MAX_PROMPT_SENTENCES {
         return (
             StatusCode::PAYLOAD_TOO_LARGE,
-            format!("Prompt too long: max {MAX_PROMPT_LEN} characters"),
+            format!("Prompt too long: max {MAX_PROMPT_SENTENCES} sentences"),
         )
             .into_response();
     }
