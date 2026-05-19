@@ -20,7 +20,7 @@ node_modules/
 web/node_modules/
 web/dist/
 web/.vite/
-package-lock.json
+# package-lock.json tracked intentionally for reproducible builds
 
 # Env / secrets
 .env
