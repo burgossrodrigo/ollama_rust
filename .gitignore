@@ -4,15 +4,15 @@ api/**/*.rs.bk
 Cargo.lock
 
 # Terraform
-iac/.terraform/
-iac/.terraform.lock.hcl
-iac/terraform.tfstate
-iac/terraform.tfstate.backup
-iac/terraform.tfvars
-iac/*.tfvars
-iac/crash.log
-iac/override.tf
-iac/override.tf.json
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/terraform.tfvars
+**/*.tfvars
+**/crash.log
+**/override.tf
+**/override.tf.json
 */.infracost
 
 # Node / Vite
