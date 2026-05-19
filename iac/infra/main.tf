@@ -62,7 +62,7 @@ resource "google_compute_router_nat" "nat" {
 
 resource "google_container_cluster" "main" {
   name     = var.cluster_name
-  location = var.zone
+  location = var.region
 
   network    = google_compute_network.vpc.id
   subnetwork = google_compute_subnetwork.subnet.id
@@ -93,14 +93,15 @@ resource "google_container_cluster" "main" {
 # ── Node Pool — GPU T4 ────────────────────────────────────────────────────────
 
 resource "google_container_node_pool" "gpu_spot" {
-  name       = "gpu-spot-pool"
-  cluster    = google_container_cluster.main.id
-  location   = var.zone
-  node_count = 1
+  name           = "gpu-spot-pool"
+  cluster        = google_container_cluster.main.id
+  location       = var.region
+  node_locations = var.node_locations
+  node_count     = 1
 
   node_config {
     machine_type = var.node_machine_type
-    spot         = false
+    spot         = true
 
     guest_accelerator {
       type  = "nvidia-tesla-t4"
@@ -123,6 +124,35 @@ resource "google_container_node_pool" "gpu_spot" {
 
     labels = {
       workload = "llm"
+    }
+  }
+
+  management {
+    auto_repair  = true
+    auto_upgrade = true
+  }
+}
+
+# ── Node Pool — Sistema (e2-medium Spot, sem GPU, sem taint) ─────────────────
+# Necessário para que CoreDNS e demais pods do kube-system possam ser schedulados.
+
+resource "google_container_node_pool" "system" {
+  name           = "system-pool"
+  cluster        = google_container_cluster.main.id
+  location       = var.region
+  node_locations = var.node_locations
+  node_count     = 1
+
+  node_config {
+    machine_type = "e2-standard-2"
+    spot         = true
+
+    oauth_scopes = [
+      "https://www.googleapis.com/auth/cloud-platform",
+    ]
+
+    labels = {
+      workload = "system"
     }
   }
 

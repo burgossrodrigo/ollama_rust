@@ -36,19 +36,25 @@ variable "subnet_name" {
 variable "subnet_cidr" {
   description = "Primary subnet CIDR"
   type        = string
-  default     = "10.10.0.0/24"
+  default     = "10.11.0.0/24"
 }
 
 variable "pods_cidr" {
   description = "Secondary CIDR for pods"
   type        = string
-  default     = "10.20.0.0/16"
+  default     = "10.21.0.0/16"
 }
 
 variable "services_cidr" {
   description = "Secondary CIDR for services"
   type        = string
-  default     = "10.30.0.0/16"
+  default     = "10.31.0.0/16"
+}
+
+variable "node_locations" {
+  description = "Zones within the region where GPU nodes run (change to avoid stockout)"
+  type        = list(string)
+  default     = ["us-central1-a"]
 }
 
 variable "node_machine_type" {
