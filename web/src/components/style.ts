@@ -5,6 +5,7 @@ import styled, { keyframes } from 'styled-components';
 export const AppLayout = styled.div`
   display: flex;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
   background: #212121;
   color: #ececec;
@@ -262,7 +263,7 @@ export const InputWrapper = styled.div`
   box-sizing: border-box;
 
   @media (max-width: 640px) {
-    padding: 8px 12px 16px;
+    padding: 8px 12px calc(16px + env(safe-area-inset-bottom, 0px));
   }
 `;
 
