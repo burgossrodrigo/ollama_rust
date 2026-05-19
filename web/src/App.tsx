@@ -73,7 +73,11 @@ export default function App() {
         setAtCapacity(true);
         throw new Error('at_capacity');
       }
-      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const msg = await res.text().catch(() => `HTTP ${res.status}`);
+        throw new Error(msg || `HTTP ${res.status}`);
+      }
+      if (!res.body) throw new Error('No response body');
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -131,7 +135,7 @@ export default function App() {
                 ...c,
                 messages: c.messages.map(m =>
                   m.id === assistantId
-                    ? { ...m, content: 'Error: could not reach the API.' }
+                    ? { ...m, content: `Error: ${e instanceof Error ? e.message : 'could not reach the API.'}` }
                     : m
                 ),
               }
