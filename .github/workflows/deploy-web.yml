@@ -8,9 +8,9 @@ on:
 
 env:
   PROJECT_ID:    ${{ vars.GCP_PROJECT_ID }}
-  REGION:        us-east1
+  REGION:        us-east4
   ARTIFACT_REPO: api-repo
-  IMAGE_PATH:    us-east1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/api-repo/web
+  IMAGE_PATH:    us-east4-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/api-repo/web
 
 permissions:
   contents: read
@@ -73,7 +73,7 @@ jobs:
         uses: google-github-actions/get-gke-credentials@v2
         with:
           cluster_name: ${{ vars.GKE_CLUSTER }}
-          location:     ${{ vars.GKE_ZONE }}
+          location:     us-east4
           project_id:   ${{ vars.GCP_PROJECT_ID }}
 
       - name: Rollout restart

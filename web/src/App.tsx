@@ -1,16 +1,28 @@
 import { useState, useCallback } from 'react';
+import { IconButton } from '@mui/material';
+import MenuIcon from '@mui/icons-material/Menu';
+import AddIcon from '@mui/icons-material/Add';
 import { Sidebar, ChatWindow, InputBar } from './components';
-import { AppLayout, MainArea } from './components/style';
+import { AppLayout, MainArea, MobileHeader, MobileTitle, Backdrop } from './components/style';
 import type { Conversation, Message } from './types';
 
 export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const activeConversation = conversations.find(c => c.id === activeId) ?? null;
 
-  const handleNewChat = useCallback(() => setActiveId(null), []);
+  const handleNewChat = useCallback(() => {
+    setActiveId(null);
+    setSidebarOpen(false);
+  }, []);
+
+  const handleSelect = useCallback((id: string) => {
+    setActiveId(id);
+    setSidebarOpen(false);
+  }, []);
 
   const handleSend = useCallback(async (text: string) => {
     if (isStreaming) return;
@@ -61,7 +73,19 @@ export default function App() {
           const data = line.slice(6).trim();
           if (data === '[DONE]') break outer;
           try {
-            const json = JSON.parse(data) as { response?: string };
+            const json = JSON.parse(data) as { response?: string; thinking?: string };
+            if (json.thinking && !json.response) {
+              setConversations(prev =>
+                prev.map(c => c.id === convId
+                  ? {
+                      ...c,
+                      messages: c.messages.map(m =>
+                        m.id === assistantId ? { ...m, thinking: true } : m
+                      ),
+                    }
+                  : c)
+              );
+            }
             if (json.response) {
               setConversations(prev =>
                 prev.map(c => c.id === convId
@@ -69,7 +93,7 @@ export default function App() {
                       ...c,
                       messages: c.messages.map(m =>
                         m.id === assistantId
-                          ? { ...m, content: m.content + json.response }
+                          ? { ...m, thinking: false, content: m.content + json.response }
                           : m
                       ),
                     }
@@ -109,13 +133,24 @@ export default function App() {
 
   return (
     <AppLayout>
+      <Backdrop $visible={sidebarOpen} onClick={() => setSidebarOpen(false)} />
       <Sidebar
         conversations={conversations}
         activeId={activeId}
-        onSelect={setActiveId}
+        onSelect={handleSelect}
         onNewChat={handleNewChat}
+        isOpen={sidebarOpen}
       />
       <MainArea>
+        <MobileHeader>
+          <IconButton size="small" onClick={() => setSidebarOpen(o => !o)} sx={{ color: '#ececec' }}>
+            <MenuIcon />
+          </IconButton>
+          <MobileTitle>Ollama Chat</MobileTitle>
+          <IconButton size="small" onClick={handleNewChat} sx={{ color: '#ececec' }}>
+            <AddIcon />
+          </IconButton>
+        </MobileHeader>
         <ChatWindow conversation={activeConversation} />
         <InputBar onSend={handleSend} disabled={isStreaming} />
       </MainArea>

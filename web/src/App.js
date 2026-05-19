@@ -51,12 +51,20 @@ export default function App() {
                         break outer;
                     try {
                         const json = JSON.parse(data);
+                        if (json.thinking && !json.response) {
+                            setConversations(prev => prev.map(c => c.id === convId
+                                ? {
+                                    ...c,
+                                    messages: c.messages.map(m => m.id === assistantId ? { ...m, thinking: true } : m),
+                                }
+                                : c));
+                        }
                         if (json.response) {
                             setConversations(prev => prev.map(c => c.id === convId
                                 ? {
                                     ...c,
                                     messages: c.messages.map(m => m.id === assistantId
-                                        ? { ...m, content: m.content + json.response }
+                                        ? { ...m, thinking: false, content: m.content + json.response }
                                         : m),
                                 }
                                 : c));

@@ -13,6 +13,7 @@ iac/*.tfvars
 iac/crash.log
 iac/override.tf
 iac/override.tf.json
+*/.infracost
 
 # Node / Vite
 node_modules/

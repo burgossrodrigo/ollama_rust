@@ -15,11 +15,12 @@ interface Props {
   activeId: string | null;
   onSelect: (id: string) => void;
   onNewChat: () => void;
+  isOpen?: boolean;
 }
 
-export function Sidebar({ conversations, activeId, onSelect, onNewChat }: Props) {
+export function Sidebar({ conversations, activeId, onSelect, onNewChat, isOpen }: Props) {
   return (
-    <SidebarWrapper>
+    <SidebarWrapper $open={isOpen}>
       <SidebarHeader>
         <SidebarTitle>Ollama Chat</SidebarTitle>
         <Tooltip title="New chat">

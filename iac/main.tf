@@ -117,7 +117,7 @@ resource "google_container_node_pool" "gpu_spot" {
 
   node_config {
     machine_type = var.node_machine_type
-    spot         = true   # Spot = até 90% de desconto; pode ser preemptado
+    spot         = false
 
     guest_accelerator {
       type  = "nvidia-tesla-t4"

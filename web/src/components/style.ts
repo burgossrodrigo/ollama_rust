@@ -21,7 +21,7 @@ export const MainArea = styled.div`
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
-export const SidebarWrapper = styled.nav`
+export const SidebarWrapper = styled.nav<{ $open?: boolean }>`
   width: 260px;
   min-width: 260px;
   background: #171717;
@@ -29,6 +29,48 @@ export const SidebarWrapper = styled.nav`
   flex-direction: column;
   padding: 8px 0;
   overflow: hidden;
+
+  @media (max-width: 640px) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    z-index: 100;
+    transform: translateX(${p => p.$open ? '0' : '-100%'});
+    transition: transform 0.25s ease;
+  }
+`;
+
+export const Backdrop = styled.div<{ $visible: boolean }>`
+  display: none;
+
+  @media (max-width: 640px) {
+    display: ${p => p.$visible ? 'block' : 'none'};
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 99;
+  }
+`;
+
+export const MobileHeader = styled.div`
+  display: none;
+
+  @media (max-width: 640px) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #171717;
+    border-bottom: 1px solid #2a2a2a;
+    min-height: 48px;
+  }
+`;
+
+export const MobileTitle = styled.span`
+  font-size: 15px;
+  font-weight: 600;
+  color: #ececec;
 `;
 
 export const SidebarHeader = styled.div`
@@ -96,6 +138,10 @@ export const MessageRow = styled.div<{ $role: 'user' | 'assistant' }>`
   max-width: 768px;
   margin: 0 auto 16px;
   padding: 0 24px;
+
+  @media (max-width: 640px) {
+    padding: 0 12px;
+  }
 `;
 
 export const Avatar = styled.div<{ $role: 'user' | 'assistant' }>`
@@ -111,6 +157,13 @@ export const Avatar = styled.div<{ $role: 'user' | 'assistant' }>`
   font-weight: 700;
   color: #fff;
   margin-top: 2px;
+
+  @media (max-width: 640px) {
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    font-size: 11px;
+  }
 `;
 
 export const Bubble = styled.div<{ $role: 'user' | 'assistant' }>`
@@ -146,6 +199,16 @@ export const Bubble = styled.div<{ $role: 'user' | 'assistant' }>`
     background: transparent;
     padding: 0;
   }
+`;
+
+// ── Thinking indicator ────────────────────────────────────────────────────────
+
+export const ThinkingLabel = styled.span`
+  display: block;
+  font-size: 13px;
+  color: #6e6e80;
+  font-style: italic;
+  margin-bottom: 4px;
 `;
 
 // ── Cursor blink animation ────────────────────────────────────────────────────
@@ -197,6 +260,10 @@ export const InputWrapper = styled.div`
   margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
+
+  @media (max-width: 640px) {
+    padding: 8px 12px 16px;
+  }
 `;
 
 export const InputInner = styled.div`
@@ -239,4 +306,8 @@ export const Hint = styled.p`
   font-size: 12px;
   color: #6e6e80;
   margin-top: 8px;
+
+  @media (max-width: 640px) {
+    display: none;
+  }
 `;

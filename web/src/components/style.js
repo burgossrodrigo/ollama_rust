@@ -24,6 +24,10 @@ export const SidebarWrapper = styled.nav `
   flex-direction: column;
   padding: 8px 0;
   overflow: hidden;
+
+  @media (max-width: 640px) {
+    display: none;
+  }
 `;
 export const SidebarHeader = styled.div `
   padding: 8px 12px 12px;
@@ -84,6 +88,10 @@ export const MessageRow = styled.div `
   max-width: 768px;
   margin: 0 auto 16px;
   padding: 0 24px;
+
+  @media (max-width: 640px) {
+    padding: 0 12px;
+  }
 `;
 export const Avatar = styled.div `
   width: 32px;
@@ -133,6 +141,14 @@ export const Bubble = styled.div `
     padding: 0;
   }
 `;
+// ── Thinking indicator ────────────────────────────────────────────────────────
+export const ThinkingLabel = styled.span `
+  display: block;
+  font-size: 13px;
+  color: #6e6e80;
+  font-style: italic;
+  margin-bottom: 4px;
+`;
 // ── Cursor blink animation ────────────────────────────────────────────────────
 const blink = keyframes `
   0%, 100% { opacity: 1; }
@@ -174,6 +190,10 @@ export const InputWrapper = styled.div `
   margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
+
+  @media (max-width: 640px) {
+    padding: 8px 12px 16px;
+  }
 `;
 export const InputInner = styled.div `
   display: flex;
