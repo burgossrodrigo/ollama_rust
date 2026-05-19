@@ -172,7 +172,7 @@ export default function App() {
           <IconButton size="small" onClick={() => setSidebarOpen(o => !o)} sx={{ color: '#ececec' }}>
             <MenuIcon />
           </IconButton>
-          <MobileTitle>Ollama Chat</MobileTitle>
+          <MobileTitle>Chat</MobileTitle>
           <IconButton size="small" onClick={handleNewChat} sx={{ color: '#ececec' }}>
             <AddIcon />
           </IconButton>

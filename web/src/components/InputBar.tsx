@@ -42,7 +42,7 @@ export function InputBar({ onSend, disabled }: Props) {
         <StyledTextarea
           ref={ref}
           rows={1}
-          placeholder="Message Ollama…"
+          placeholder="Send a message…"
           onKeyDown={handleKey}
           onInput={autoResize}
           disabled={disabled}

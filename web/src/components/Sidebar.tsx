@@ -22,7 +22,7 @@ export function Sidebar({ conversations, activeId, onSelect, onNewChat, isOpen }
   return (
     <SidebarWrapper $open={isOpen}>
       <SidebarHeader>
-        <SidebarTitle>Ollama Chat</SidebarTitle>
+        <SidebarTitle>Chat</SidebarTitle>
         <Tooltip title="New chat">
           <IconButton size="small" onClick={onNewChat} sx={{ color: '#ececec' }}>
             <AddIcon fontSize="small" />
